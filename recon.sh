@@ -13,17 +13,21 @@ if [ "$#" -lt 2 ]; then
     exit 1
 fi
 
-IPV4_ADDRESSES="$1"
-INTERFACE="$2"
-
-NMAP_OPTS="-T4 -e $INTERFACE"
-
 if [ ! "$(whoami)" = "root" ]; then
-    echo "[!] This script requires root privileges, exiting..."
+    echo "[!] This script needs to be executed with sudo, exiting..."
     exit 1
 fi
 
-nplan -json model.json -fresh
+if [ -e "$SUDO_USER" ]; then
+    export SUDO_USER="root"
+fi
+
+IPV4_ADDRESSES="$1"
+INTERFACE="$2"
+NMAP_OPTS="-T4 -e $INTERFACE"
+NPLAN_COMMAND="sudo -u $SUDO_USER nplan -json model.json -export -drawio networkplan.drawio"
+
+
 
 if [ ! -e "$PING_SCAN_FILE.txt" ]|| [ ! -e "$PING_SCAN_FILE.xml" ]; then
     echo "[*] Running nmap ping scan..."
@@ -32,8 +36,7 @@ else
     echo "[!] $PING_SCAN_FILE exists already, skipping ping scan..."
 fi
 
-nplan -json model.json -nmap "$PING_SCAN_FILE.xml"
-nplan -export -drawio networkplan.drawio -json model.json
+$NPLAN_COMMAND -fresh -nmap "$PING_SCAN_FILE.xml"
 
 if [ ! -e "$IPV4_HOST_LIST" ]; then
     echo "[*] Processing nmap output..."
@@ -65,8 +68,7 @@ else
     echo "[!] $IPV6_HOST_LIST exists already, skipping scan6..."
 fi
 
-nplan -json model.json -scan6 "$IPV6_HOST_LIST"
-nplan -export -drawio networkplan.drawio -json model.json
+$NPLAN_COMMAND -scan6 "$IPV6_HOST_LIST"
 
 if [ ! -e "$IPV6_HOST_LIST_MAC" ]; then
     paste -d ' ' <(cut -f3 -d ' ' $IPV6_HOST_LIST) <(cut -f1 -d ' ' $IPV6_HOST_LIST) | sort > $IPV6_HOST_LIST_MAC
@@ -93,13 +95,12 @@ while read host; do
     else
         echo "[*] $filename.txt exists, skipping partial port scan" >&2
     fi
-    nplan -json model.json -nmap "$filename.xml"
-    nplan -export -drawio networkplan.drawio -json model.json
+    $NPLAN_COMMAND -nmap "$filename.xml"
     ports="$(grep Ports $filename.txt | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
     echo -e "$host\t$ports"
 done <"$FULL_HOST_LIST" >"$FULL_HOST_LIST_SOME_PORTS"
 
-nplan -export -drawio networkplan.drawio -json model.json
+$NPLAN_COMMAND
 
 echo "[*] Running full port scan..."
 while read host; do
@@ -111,9 +112,8 @@ while read host; do
     else
         echo "[*] $filename.txt exists, skipping full port scan" >&2
     fi
-    nplan -json model.json -nmap "$filename.xml"
-    nplan -export -drawio networkplan.drawio -json model.json
+    $NPLAN_COMMAND -nmap "$filename.xml"
     echo -e "$host\t$(grep Ports $filename.txt | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
 done <"$FULL_HOST_LIST" >"$FULL_HOST_LIST_ALL_PORTS"
 
-nplan -export -drawio networkplan.drawio -json model.json
+$NPLAN_COMMAND 
