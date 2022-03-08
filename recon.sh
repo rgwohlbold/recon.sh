@@ -1,6 +1,6 @@
 #!/bin/bash
-PING_SCAN_FILE="1_ping_nmap.txt"
-IPV4_HOST_LIST="2_ipv4_host_list.txt"
+PING_SCAN_FILE="1_ping_nmap"
+IPV4_HOST_LIST="2_ipv4_host_list"
 IPV4_HOST_LIST_MAC="3_ipv4_host_list_mac.txt"
 IPV6_HOST_LIST="4_ipv6_host_list.txt"
 IPV6_HOST_LIST_MAC="5_ipv6_host_list_mac.txt"
@@ -23,17 +23,20 @@ if [ ! "$(whoami)" = "root" ]; then
     exit 1
 fi
 
-if [ ! -e "$PING_SCAN_FILE" ]; then
+nplan -json model.json -fresh
+
+if [ ! -e "$PING_SCAN_FILE.txt" ]|| [ ! -e "$PING_SCAN_FILE.xml" ]; then
     echo "[*] Running nmap ping scan..."
-    nmap -sn $NMAP_OPTS "$IPV4_ADDRESSES" -oG "$PING_SCAN_FILE"
+    nmap -sn $NMAP_OPTS "$IPV4_ADDRESSES" -oG "$PING_SCAN_FILE.txt" -oX "$PING_SCAN_FILE.xml"
 else
     echo "[!] $PING_SCAN_FILE exists already, skipping ping scan..."
 fi
+nplan -json model.json -nmap "$PING_SCAN_FILE.xml"
 
 if [ ! -e "$IPV4_HOST_LIST" ]; then
     echo "[*] Processing nmap output..."
-    grep -v Down "$PING_SCAN_FILE" | sed '/^#/d' | cut -d $'\t' -f 1 | cut -d ' ' -f 2,3 > "$IPV4_HOST_LIST"
-else 
+    grep -v Down "$PING_SCAN_FILE.txt" | sed '/^#/d' | cut -d $'\t' -f 1 | cut -d ' ' -f 2,3 > "$IPV4_HOST_LIST"
+else
     echo "[!] $IPV4_HOST_LIST exists already, skipping nmap output processing..."
 fi
 
@@ -59,6 +62,7 @@ if [ ! -e "$IPV6_HOST_LIST" ]; then
 else
     echo "[!] $IPV6_HOST_LIST exists already, skipping scan6..."
 fi
+nplan -json model.json -scan6 $IPV4_HOST_LIST
 
 if [ ! -e "$IPV6_HOST_LIST_MAC" ]; then
     paste -d ' ' <(cut -f3 -d ' ' $IPV6_HOST_LIST) <(cut -f1 -d ' ' $IPV6_HOST_LIST) | sort > $IPV6_HOST_LIST_MAC
@@ -78,13 +82,15 @@ if [ ! -e "$FULL_HOST_LIST_SOME_PORTS" ]; then
     echo "[*] Running partial port scan..."
     while read host; do
         ip="$(echo -n "$host" | cut -d $'\t' -f 2)"
-        filename=7_ports_partial_"$ip".txt
+        mkdir -p $ip
+        filename="$ip/7_ports_partial"
         if [ ! -e "$filename" ]; then
-            nmap -PN $NMAP_OPTS "$ip" -oG "$filename" >&2
+            nmap -PN $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml" >&2
         else
             echo "[*] $filename exists, skipping partial port scan" >&2
         fi
-        ports="$(grep Ports $filename | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
+        nplan -json model.json -nmap "$filename.xml"
+        ports="$(grep Ports $filename.txt | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
         echo -e "$host\t$ports"
     done <"$FULL_HOST_LIST" >"$FULL_HOST_LIST_SOME_PORTS"
 else
@@ -95,14 +101,18 @@ if [ ! -e "$FULL_HOST_LIST_ALL_PORTS" ]; then
     echo "[*] Running full port scan..."
     while read host; do
         ip="$(echo -n "$host" | cut -d $'\t' -f 2)"
-        filename=8_ports_full_"$ip".txt
+        mkdir -p $ip
+        filename="$ip/8_ports_full"
         if [ ! -e "$filename" ]; then
-            nmap -PN -p- -A $NMAP_OPTS "$ip" -oG "$filename" >&2
+            nmap -PN -p- -A $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml">&2
         else
             echo "[*] $filename exists, skipping full port scan" >&2
         fi
-        echo -e "$host\t$(grep Ports $filename | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
+        nplan -json model.json -nmap "$filename.xml"
+        echo -e "$host\t$(grep Ports $filename.txt | cut -d $'\t' -f 2 | cut -d ' ' -f 2-)"
     done <"$FULL_HOST_LIST" >"$FULL_HOST_LIST_ALL_PORTS"
 else
     echo "[!] $FULL_HOST_LIST_ALL_PORTS exists already, skipping full port scan..."
 fi
+
+nplan -export -drawio networkplan.drawio -json model.json
