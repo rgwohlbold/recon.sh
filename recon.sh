@@ -78,7 +78,7 @@ else
 fi
 
 if [ ! -e "$FULL_HOST_LIST" ]; then
-    join -a 1 3_ipv4_host_list_mac.txt 5_ipv6_host_list_mac.txt | awk '{ print $1 "\t" $2 "\t" "\t" $4 "\t" $3}' | sort -k 2,2 -k 3,3 -k 4,4 -k 5,5 -n -t . > "$FULL_HOST_LIST"
+    join -a 1 -a 2 3_ipv4_host_list_mac.txt 5_ipv6_host_list_mac.txt | awk '{ print $1 "\t" $2 "\t" "\t" $4 "\t" $3}' | sort -k 2,2 -k 3,3 -k 4,4 -k 5,5 -n -t . > "$FULL_HOST_LIST"
     echo "[*] Merging IPv4 and IPv6 information..."
 else
     echo "[!] $FULL_HOST_LIST exists already, skipping output processing..."
@@ -91,7 +91,11 @@ while read host; do
     mkdir -p $ip
     filename="$ip/partial"
     if [ ! -e "$filename.txt" ]; then
-        nmap -PN $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml" >&2
+        if [[ $ip =~ .*:.* ]]; then
+            nmap -6 -PN $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml" >&2
+        else
+            nmap -PN $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml" >&2
+        fi
     else
         echo "[*] $filename.txt exists, skipping partial port scan" >&2
     fi
@@ -108,7 +112,11 @@ while read host; do
     mkdir -p $ip
     filename="$ip/full"
     if [ ! -e "$filename.txt" ]; then
-        nmap -PN -p- -A $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml">&2
+        if [[ $ip =~ .*:.* ]]; then
+            nmap -6 -PN -p- -A $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml">&2
+        else
+            nmap -PN -p- -A $NMAP_OPTS "$ip" -oN "$filename"_human.txt -oG "$filename.txt" -oX "$filename.xml">&2
+        fi
     else
         echo "[*] $filename.txt exists, skipping full port scan" >&2
     fi
