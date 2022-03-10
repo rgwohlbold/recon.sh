@@ -31,7 +31,7 @@ NPLAN_COMMAND="sudo -u $SUDO_USER nplan -json model.json -export -drawio network
 
 if [ ! -e "$PING_SCAN_FILE.txt" ]|| [ ! -e "$PING_SCAN_FILE.xml" ]; then
     echo "[*] Running nmap ping scan..."
-    nmap -sn "$NMAP_OPTS" "$IPV4_ADDRESSES" -oG "$PING_SCAN_FILE.txt" -oX "$PING_SCAN_FILE.xml"
+    nmap -sn -PS "$NMAP_OPTS" "$IPV4_ADDRESSES" -oG "$PING_SCAN_FILE.txt" -oX "$PING_SCAN_FILE.xml"
 else
     echo "[!] $PING_SCAN_FILE exists already, skipping ping scan..."
 fi
